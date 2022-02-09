@@ -1,13 +1,13 @@
 from nose.tools import assert_equal, assert_false, assert_true, raises
-from . import schema
+from . import schema, PREFIX
 from datajoint import DataJointError
+import datajoint as dj
 
 
 class TestPopulate:
     """
     Test base relations: insert, delete
     """
-
     def setUp(self):
         self.user = schema.User()
         self.subject = schema.Subject()
@@ -52,7 +52,7 @@ class TestPopulate:
 
     def test_allow_direct_insert(self):
         assert_true(self.subject, 'root tables are empty')
-        key = self.subject.fetch('KEY')[0]
+        key = self.subject.fetch('KEY', limit=1)[0]
         key['experiment_id'] = 1000
         key['experiment_date'] = '2018-10-30'
         self.experiment.insert1(key, allow_direct_insert=True)
@@ -64,3 +64,39 @@ class TestPopulate:
         key['experiment_id'] = 1001
         key['experiment_date'] = '2018-10-30'
         self.experiment.insert1(key)
+
+    def test_load_dependencies(self):
+        schema = dj.Schema(f'{PREFIX}_load_dependencies_populate')
+
+        @schema
+        class ImageSource(dj.Lookup):
+            definition = """
+            image_source_id: int
+            """
+            contents = [(0,)]
+
+        @schema
+        class Image(dj.Imported):
+            definition = """
+            -> ImageSource
+            ---
+            image_data: longblob
+            """
+
+            def make(self, key):
+                self.insert1(dict(key, image_data=dict()))
+
+        Image.populate()
+
+        @schema
+        class Crop(dj.Computed):
+            definition = """
+            -> Image
+            ---
+            crop_image: longblob
+            """
+
+            def make(self, key):
+                self.insert1(dict(key, crop_image=dict()))
+
+        Crop.populate()

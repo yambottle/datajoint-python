@@ -13,6 +13,8 @@ from .schema_simple import (A, B, D, E, F, L, DataA, DataB, TTestUpdate, IJ, JI,
 from .schema import (Experiment, TTest3, Trial, Ephys, Child, Parent, SubjectA, SessionA,
                      SessionStatusA, SessionDateA)
 
+from . import PREFIX, CONN_INFO
+
 
 def setup():
     """
@@ -176,6 +178,15 @@ class TestRelational:
                      'failed semijoin or antijoin')
         assert_equal(len((D() & cond).proj()), len((D() & cond)),
                      'projection failed: altered its argument''s cardinality')
+
+    @staticmethod
+    def test_rename_non_dj_attribute():
+        schema = PREFIX + '_test1'
+        connection = dj.conn(**CONN_INFO)
+        connection.query(f'CREATE TABLE {schema}.test_table (oldID int PRIMARY KEY)').fetchall()
+        mySchema = dj.VirtualModule(schema, schema)
+        assert 'oldID' not in  mySchema.TestTable.proj(new_name='oldID').heading.attributes.keys(), 'Failed to rename attribute correctly'
+        connection.query(f'DROP TABLE {schema}.test_table')
 
     @staticmethod
     def test_union():
@@ -505,3 +516,13 @@ class TestRelational:
         session_dates = ((SessionDateA * (subj_query & 'date_trained<"2020-12-21"')) &
                          'session_date<date_trained')
         assert len(session_dates) == 1
+
+    @staticmethod
+    def test_union_multiple():
+        # https://github.com/datajoint/datajoint-python/issues/926
+        q1 = IJ & dict(j=2)
+        q2 = (IJ & dict(j=2, i=0)) + (IJ & dict(j=2, i=1)) + (IJ & dict(j=2, i=2))
+        x = set(zip(*q1.fetch('i', 'j')))
+        y = set(zip(*q2.fetch('i', 'j')))
+        assert x == y
+        assert q1.fetch(as_dict=True) == q2.fetch(as_dict=True)
