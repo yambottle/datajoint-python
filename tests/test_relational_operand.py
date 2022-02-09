@@ -4,11 +4,16 @@ import pandas
 import datetime
 
 import numpy as np
-from nose.tools import assert_equal, assert_false, assert_true, raises, assert_set_equal, assert_list_equal
+from nose.tools import (assert_equal, assert_false, assert_true, raises, assert_set_equal,
+                        assert_list_equal)
 
 import datajoint as dj
-from .schema_simple import A, B, D, E, F, L, DataA, DataB, TTestUpdate, IJ, JI, ReservedWord
-from .schema import Experiment, TTest3, Trial, Ephys, Child, Parent
+from .schema_simple import (A, B, D, E, F, L, DataA, DataB, TTestUpdate, IJ, JI,
+                            ReservedWord, OutfitLaunch)
+from .schema import (Experiment, TTest3, Trial, Ephys, Child, Parent, SubjectA, SessionA,
+                     SessionStatusA, SessionDateA)
+
+from . import PREFIX, CONN_INFO
 
 
 def setup():
@@ -173,6 +178,15 @@ class TestRelational:
                      'failed semijoin or antijoin')
         assert_equal(len((D() & cond).proj()), len((D() & cond)),
                      'projection failed: altered its argument''s cardinality')
+
+    @staticmethod
+    def test_rename_non_dj_attribute():
+        schema = PREFIX + '_test1'
+        connection = dj.conn(**CONN_INFO)
+        connection.query(f'CREATE TABLE {schema}.test_table (oldID int PRIMARY KEY)').fetchall()
+        mySchema = dj.VirtualModule(schema, schema)
+        assert 'oldID' not in  mySchema.TestTable.proj(new_name='oldID').heading.attributes.keys(), 'Failed to rename attribute correctly'
+        connection.query(f'DROP TABLE {schema}.test_table')
 
     @staticmethod
     def test_union():
@@ -459,3 +473,56 @@ class TestRelational:
     def test_permissive_restriction_basic():
         """Verify join compatibility check is skipped for restriction"""
         Child ^ Parent
+
+    @staticmethod
+    def test_complex_date_restriction():
+        # https://github.com/datajoint/datajoint-python/issues/892
+        """Test a complex date restriction"""
+        q = OutfitLaunch & 'day between curdate() - interval 30 day and curdate()'
+        assert len(q) == 1
+        q = OutfitLaunch & 'day between curdate() - interval 4 week and curdate()'
+        assert len(q) == 1
+        q = OutfitLaunch & 'day between curdate() - interval 1 month and curdate()'
+        assert len(q) == 1
+        q = OutfitLaunch & 'day between curdate() - interval 1 year and curdate()'
+        assert len(q) == 1
+        q = OutfitLaunch & '`day` between curdate() - interval 30 day and curdate()'
+        assert len(q) == 1
+        q.delete()
+
+    @staticmethod
+    def test_null_dict_restriction():
+        # https://github.com/datajoint/datajoint-python/issues/824
+        """Test a restriction for null using dict"""
+        F.insert([dict(id=5)])
+        q = F & dj.AndList([dict(id=5), 'date is NULL'])
+        assert len(q) == 1
+        q = F & dict(id=5, date=None)
+        assert len(q) == 1
+
+    @staticmethod
+    def test_joins_with_aggregation():
+        # https://github.com/datajoint/datajoint-python/issues/898
+        # https://github.com/datajoint/datajoint-python/issues/899
+        subjects = SubjectA.aggr(
+            SessionStatusA & 'status="trained_1a" or status="trained_1b"',
+            date_trained='min(date(session_start_time))')
+        assert len(SessionDateA * subjects) == 4
+        assert len(subjects * SessionDateA) == 4
+
+        subj_query = SubjectA.aggr(
+            SessionA * SessionStatusA & 'status="trained_1a" or status="trained_1b"',
+            date_trained='min(date(session_start_time))')
+        session_dates = ((SessionDateA * (subj_query & 'date_trained<"2020-12-21"')) &
+                         'session_date<date_trained')
+        assert len(session_dates) == 1
+
+    @staticmethod
+    def test_union_multiple():
+        # https://github.com/datajoint/datajoint-python/issues/926
+        q1 = IJ & dict(j=2)
+        q2 = (IJ & dict(j=2, i=0)) + (IJ & dict(j=2, i=1)) + (IJ & dict(j=2, i=2))
+        x = set(zip(*q1.fetch('i', 'j')))
+        y = set(zip(*q2.fetch('i', 'j')))
+        assert x == y
+        assert q1.fetch(as_dict=True) == q2.fetch(as_dict=True)

@@ -4,9 +4,14 @@ A simple, abstract schema to test relational algebra
 import random
 import datajoint as dj
 import itertools
+import hashlib
+import uuid
+import faker
+
 
 from . import PREFIX, CONN_INFO
 import numpy as np
+from datetime import date, timedelta
 
 schema = dj.Schema(PREFIX + '_relational', locals(), connection=dj.conn(**CONN_INFO))
 
@@ -151,6 +156,55 @@ class DataB(dj.Lookup):
 
 
 @schema
+class Website(dj.Lookup):
+    definition = """
+    url_hash : uuid
+    ---
+    url : varchar(1000)
+    """
+
+    def insert1_url(self, url):
+        hashed = hashlib.sha1()
+        hashed.update(url.encode())
+        url_hash = uuid.UUID(bytes=hashed.digest()[:16])
+        self.insert1(dict(url=url, url_hash=url_hash), skip_duplicates=True)
+        return url_hash
+
+
+@schema
+class Profile(dj.Manual):
+    definition = """
+    ssn : char(11)
+    ---
+    name : varchar(70)
+    residence : varchar(255)
+    blood_group  : enum('A+', 'A-', 'AB+', 'AB-', 'B+', 'B-', 'O+', 'O-')
+    username : varchar(120)
+    birthdate : date
+    job : varchar(120)
+    sex : enum('M', 'F')
+    """
+
+    class Website(dj.Part):
+        definition = """
+        -> master
+        -> Website
+        """
+
+    def populate_random(self, n=10):
+        faker.Faker.seed(0)
+        fake = faker.Faker()
+        faker.Faker.seed(0)  # make tests deterministic
+        for _ in range(n):
+            profile = fake.profile()
+            with self.connection.transaction:
+                self.insert1(profile, ignore_extra_fields=True)
+                for url in profile['website']:
+                    self.Website().insert1(
+                        dict(ssn=profile['ssn'], url_hash=Website().insert1_url(url)))
+
+
+@schema
 class TTestUpdate(dj.Lookup):
     definition = """
     primary_key     : int
@@ -195,3 +249,22 @@ class ReservedWord(dj.Manual):
     int   :  int
     select : varchar(25)
     """
+
+
+@schema
+class OutfitLaunch(dj.Lookup):
+    definition = """
+    # Monthly released designer outfits
+    release_id: int
+    ---
+    day: date
+    """
+    contents = [(0, date.today() - timedelta(days=15))]
+
+    class OutfitPiece(dj.Part, dj.Lookup):
+        definition = """
+        # Outfit piece associated with outfit
+        -> OutfitLaunch
+        piece: varchar(20)
+        """
+        contents = [(0, 'jeans'), (0, 'sneakers'), (0, 'polo')]
