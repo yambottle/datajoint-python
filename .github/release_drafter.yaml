@@ -30,7 +30,6 @@ categories:
 change-template: '- $TITLE(#$NUMBER)@$AUTHOR'
 change-title-escapes: '\<*_&' # You can add # and @ to disable mentions, and add ` to disable code blocks.
 template: |
-  DataJoint $RESOLVED_VERSION
   $CHANGES
 
   **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
