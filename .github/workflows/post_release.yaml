@@ -49,7 +49,7 @@ jobs:
             --body "This PR updates \`version.py\` to match the latest release: ${{ github.event.release.name }}" \
             --base master \
             --head ${{ env.BRANCH_NAME }} \
-            --reviewer yambottle
+            --reviewer dimitri-yatsenko,yambottle,ttngu207
   slack-notification:
     runs-on: ubuntu-latest
     steps:
