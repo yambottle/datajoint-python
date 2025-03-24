@@ -68,18 +68,19 @@ jobs:
           echo "NEW_VERSION=${{github.event.release.resolved_version}}" >> $GITHUB_ENV
       - name: Publish package
         id: publish
+        env:
+          RELEASE_NAME: ${{ github.event.release.name }}
         run: |
-          RELEASE_NAME="${{ github.event.release.name }}"
           export HOST_UID=$(id -u)
           if [[ "$RELEASE_NAME" =~ ^Test ]]; then
             LATEST_PYPI=$(curl -s https://test.pypi.org/pypi/datajoint/json | jq -r '.info.version')
-            echo "TEST_PYPI=true" >> $GITHUB_OUTPUT
+            echo "TEST_PYPI=true" >> $GITHUB_ENV
             export TWINE_REPOSITORY="testpypi"
             export TWINE_USERNAME=${TWINE_TEST_USERNAME}
             export TWINE_PASSWORD=${TWINE_TEST_PASSWORD}
           else
             LATEST_PYPI=$(curl -s https://pypi.org/pypi/datajoint/json | jq -r '.info.version')
-            echo "TEST_PYPI=false" >> $GITHUB_OUTPUT
+            echo "TEST_PYPI=false" >> $GITHUB_ENV
             export TWINE_REPOSITORY="pypi"
           fi
           # Check if the new version is different from the latest on PyPI, avoid re-uploading error
@@ -124,7 +125,7 @@ jobs:
             --head ${{ env.BRANCH_NAME }} \
             --reviewer dimitri-yatsenko,yambottle,ttngu207
       - name: Post release notification to Slack
-        if: ${{ steps.publish.outputs.TEST_PYPI == 'false' }}
+        if: ${{ env.TEST_PYPI == 'false' }}
         uses: slackapi/slack-github-action@v2.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
