@@ -40,14 +40,14 @@ jobs:
           git push origin $BRANCH_NAME
           echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-      # - name: Create Pull Request
-      #   uses: peter-evans/create-pull-request@v6
-      #   with:
-      #     token: ${{ secrets.GITHUB_TOKEN }}
-      #     branch: ${{ env.BRANCH_NAME }}
-      #     title: "Update version.py to ${{ github.event.release.name }}"
-      #     body: "This PR updates `version.py` to match the latest release: ${{ github.event.release.name }}"
-      #     base: master
+      - name: Create Pull Request
+        run: |
+          gh pr create \
+            --title "[github-actions]Update version.py to ${{ github.event.release.name }}" \
+            --body "This PR updates \`version.py\` to match the latest release: ${{ github.event.release.name }}" \
+            --base master \
+            --head ${{ env.BRANCH_NAME }} \
+            --reviewer yambottle
   slack-notification:
     runs-on: ubuntu-latest
     steps:
