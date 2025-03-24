@@ -16,6 +16,7 @@ jobs:
     permissions:
       # write permission is required to update version.py
       contents: write
+      pull-requests: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -29,11 +30,23 @@ jobs:
           sed -i "s/^__version__ = .*/__version__ = \"$VERSION\"/" datajoint/version.py
           cat datajoint/version.py
           # Commit the changes
+          BRANCH_NAME="update-version-$VERSION"
+          git checkout -b $BRANCH_NAME
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
           git add datajoint/version.py
           git commit -m "Update version.py to $VERSION"
-          git push
+          git push origin $BRANCH_NAME
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ env.BRANCH_NAME }}
+          title: "Update version.py to ${{ github.event.release.name }}"
+          body: "This PR updates `version.py` to match the latest release: ${{ github.event.release.name }}"
+          base: master
   slack-notification:
     runs-on: ubuntu-latest
     steps:
