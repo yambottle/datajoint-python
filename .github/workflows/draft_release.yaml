@@ -26,6 +26,6 @@ jobs:
         with:
           config-name: release_drafter.yaml
           disable-autolabeler: true
-          name: ${{ github.event.release.name }}
+          name: "Release ${{ github.event.release.name }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
