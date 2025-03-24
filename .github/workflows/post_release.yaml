@@ -8,6 +8,7 @@ on:
       #- published
       ## stable release only
       - released
+run-name: Post ${{ github.event.release.name }}
 
 jobs:
   call-publish-docs:
